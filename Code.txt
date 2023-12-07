@@ -1,0 +1,70 @@
+from transformers import BertTokenizer, BertForSequenceClassification
+from torch.nn.functional import softmax
+import torch
+import openpyxl
+from openpyxl import Workbook
+
+# Загрузка предварительно обученной модели и токенизатора
+model_name = "seara/rubert-base-cased-russian-sentiment"
+tokenizer = BertTokenizer.from_pretrained(model_name)
+model = BertForSequenceClassification.from_pretrained(model_name)
+
+
+# Функция для анализа тональности текста
+def analyze_sentiment(text):
+    # Токенизация текста и подготовка входных данных для модели
+    tokens = tokenizer.encode_plus(text, return_tensors="pt", max_length=512, truncation=True)
+
+    # Получение выхода от модели
+    outputs = model(**tokens)
+
+    # Применение softmax для получения вероятностей классов
+    probabilities = softmax(outputs.logits, dim=-1)
+
+    # Возвращение результатов
+    return probabilities
+
+
+# Функция для интерпретации результатов
+def interpret_results(probabilities):
+    # Получение списка классов
+    classes = ["Negative", "Positive","Neutral"]
+
+    # Преобразование тензора вероятностей в список
+    probabilities_list = probabilities.squeeze().tolist()
+
+    # Создание словаря с парами "класс - вероятность"
+    results = {class_name: prob for class_name, prob in zip(classes, probabilities_list)}
+
+    # Вывод результатов
+    print("Вероятности для каждого класса:")
+    for class_name, prob in results.items():
+        print(f"{class_name}: {prob:.4f}")
+
+    # Определение класса с наивысшей вероятностью
+    predicted_class = max(results, key=results.get)
+    print(f"Предсказанный класс: {predicted_class}")
+
+
+
+# interpret_results(results)
+wb = openpyxl.load_workbook("1.xlsx") #open correct file
+sheet = wb.active
+cell_numb = 2 #number of cell to parse data
+
+while True:
+    cell = sheet[f"C{cell_numb}"] # procesing C2 til the end, change C if that nessesary
+
+    if cell.value is None:
+        print("*"*20)
+        print(f"End of the file! - C{cell_numb}\n")
+        print("*"*20)
+        break
+    else:
+        print(f"Cell C{cell_numb}")
+        text_to_analyze = str(cell.value)
+        print(text_to_analyze)
+        results = analyze_sentiment(text_to_analyze)
+        interpret_results(results)
+        cell_numb = cell_numb + 1
+wb.close()
